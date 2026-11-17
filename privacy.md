@@ -62,6 +62,8 @@ To work, the app contacts the following services:
   (`api.lorcana.ravensburger.com`), only when you download an extra language (French, German or
   Italian) of the Disney Lorcana catalog and when those images are shown. The same rules apply as
   for the services above.
+- **Scrydex** (`images.scrydex.com`), only for Pokémon cards that TCGdex has no picture of: the
+  picture is requested from there instead, with the same rules as the services above.
 - **GitHub** (`github.com`), only in the version of Binderly downloaded directly from our website
   or release page, to check whether a newer version is available and to download it. GitHub
   receives your IP address and the usual request details. **The version installed from the
