@@ -5,7 +5,7 @@ permalink: /privacy/
 
 # Binderly Privacy Policy
 
-**Last updated: November 16, 2026**
+**Last updated: November 17, 2026**
 
 Binderly is a desktop application for browsing and managing collectible card collections. This
 policy explains what information the app uses, where it goes, and the choices you have.
@@ -48,6 +48,15 @@ To work, the app contacts the following services:
   (for example `Binderly/0.1.3 (unofficial desktop collection manager)`). The requests identify
   cards and sets only; they contain none of your collection or list data. Scryfall's own privacy
   practices are described at <https://scryfall.com/docs/privacy>.
+- **YGOPRODeck** (`db.ygoprodeck.com` and `images.ygoprodeck.com`), **TCGdex**
+  (`api.tcgdex.net` and `assets.tcgdex.net`) and **Lorcast** (`api.lorcast.com` and
+  `cards.lorcast.io`), only when you download the catalog of the matching game (Yu-Gi-Oh!,
+  Pokémon TCG, Disney Lorcana) and when its card images are shown. The same rules apply as for
+  Scryfall: they receive your IP address and the technical details of the request, including the
+  app's name and version, and the requests contain only card and set identifiers, never your
+  collection or list data. For Pokémon cards, TCGdex is also asked for the price of a card when
+  you open its details (the request contains that card's identifier, and the answer is kept on
+  your device for a day), so TCGdex can see which Pokémon cards you look at and when.
 - **GitHub** (`github.com`), only in the version of Binderly downloaded directly from our website
   or release page, to check whether a newer version is available and to download it. GitHub
   receives your IP address and the usual request details. **The version installed from the
