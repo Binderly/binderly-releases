@@ -56,7 +56,12 @@ To work, the app contacts the following services:
   app's name and version, and the requests contain only card and set identifiers, never your
   collection or list data. For Pokémon cards, TCGdex is also asked for the price of a card when
   you open its details (the request contains that card's identifier, and the answer is kept on
-  your device for a day), so TCGdex can see which Pokémon cards you look at and when.
+  your device for a day), so TCGdex can see which Pokémon cards you look at and when. The same
+  happens, for a card that exists only in another language, with its type and text.
+- **LorcanaJSON** (`lorcanajson.org`) and the official Disney Lorcana card images
+  (`api.lorcana.ravensburger.com`), only when you download an extra language (French, German or
+  Italian) of the Disney Lorcana catalog and when those images are shown. The same rules apply as
+  for the services above.
 - **GitHub** (`github.com`), only in the version of Binderly downloaded directly from our website
   or release page, to check whether a newer version is available and to download it. GitHub
   receives your IP address and the usual request details. **The version installed from the
