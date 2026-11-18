@@ -1,0 +1,155 @@
+# Costruisce gli installatori di Binderly. Questo file è pubblico: qui non c'è nessuna chiave né
+# segreto di scrittura. (Copia versionata in ci/public-build.yml del codice: se lo modifichi,
+# ricopialo qui come .github/workflows/build.yml. Vedi docs/RELEASING.md.)
+name: Costruisci
+
+run-name: Costruisci ${{ inputs.tag }} (${{ inputs.nonce }})
+
+# Solo a mano: nessun trigger su pull request, quindi i fork non fanno girare nulla.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Tag di versione (v0.1.7)
+        required: true
+      sha:
+        description: Commit da costruire
+        required: true
+      nonce:
+        description: Identificativo dell'esecuzione
+        required: true
+
+permissions: {}
+
+env:
+  CODE_REPO: Binderly/binderly
+
+jobs:
+  build:
+    name: Installatore (${{ matrix.label }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Windows
+            os: windows-latest
+            args: ''
+            target: ''
+          - label: Linux
+            os: ubuntu-22.04
+            args: ''
+            target: ''
+          - label: macOS (Apple Silicon)
+            os: macos-latest
+            args: --target aarch64-apple-darwin
+            target: aarch64-apple-darwin
+          - label: macOS (Intel)
+            os: macos-latest
+            args: --target x86_64-apple-darwin
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    # Scrivere sulla bozza del rilascio di questo stesso repository e attestare la provenienza.
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: Controlla gli ingressi
+        shell: bash
+        env:
+          TAG: ${{ inputs.tag }}
+          SHA: ${{ inputs.sha }}
+          TOKEN: ${{ secrets.CODE_READ_TOKEN }}
+        run: |
+          [[ "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] || { echo "Tag non valido." >&2; exit 1; }
+          [[ "$SHA" =~ ^[0-9a-f]{40}$ ]] || { echo "Commit non valido." >&2; exit 1; }
+          [ -n "$TOKEN" ] || { echo "Manca il segreto CODE_READ_TOKEN." >&2; exit 1; }
+
+      # Il token non resta sul disco (persist-credentials: false).
+      - name: Scarica il codice
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          repository: ${{ env.CODE_REPO }}
+          ref: ${{ inputs.sha }}
+          token: ${{ secrets.CODE_READ_TOKEN }}
+          persist-credentials: false
+          path: code
+
+      - name: La versione dei file corrisponde al tag
+        shell: bash
+        working-directory: code
+        env:
+          TAG: ${{ inputs.tag }}
+        run: node scripts/check-version.mjs "$TAG"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: code/ui/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: code
+
+      - name: Dipendenze di sistema (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf libssl-dev libxdo-dev
+
+      - name: Dipendenze dell'interfaccia
+        working-directory: code
+        run: npm ci --prefix ui
+
+      # Senza firma dei pacchetti di aggiornamento (la si fa altrove, dopo).
+      - name: Costruisci l'installatore
+        shell: bash
+        working-directory: code
+        run: npx --prefix ui tauri build ${{ matrix.args }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+      # Su macOS il pacchetto di aggiornamento è l'app compressa (come lo crea `tauri build` con la firma).
+      - name: Comprimi l'app (macOS)
+        if: runner.os == 'macOS'
+        shell: bash
+        working-directory: code
+        run: |
+          dir="target/${{ matrix.target }}/release/bundle/macos"
+          tar -czf "$dir/Binderly.app.tar.gz" -C "$dir" Binderly.app
+          ls -l "$dir"
+
+      - name: Attesta la provenienza (Windows)
+        if: runner.os == 'Windows'
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: code/target/release/bundle/nsis/*-setup.exe
+
+      - name: Attesta la provenienza (Linux)
+        if: runner.os == 'Linux'
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            code/target/release/bundle/appimage/*.AppImage
+            code/target/release/bundle/deb/*.deb
+
+      - name: Attesta la provenienza (macOS)
+        if: runner.os == 'macOS'
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
+        with:
+          subject-path: |
+            code/target/${{ matrix.target }}/release/bundle/dmg/*.dmg
+            code/target/${{ matrix.target }}/release/bundle/macos/*.app.tar.gz
+
+      # La bozza esiste già: qui si aggiungono solo i file.
+      - name: Carica gli installatori sulla bozza
+        shell: bash
+        working-directory: code
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASES_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+        run: node scripts/upload-release-assets.mjs "$TAG"
