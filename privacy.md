@@ -5,7 +5,7 @@ permalink: /privacy/
 
 # Binderly Privacy Policy
 
-**Last updated: November 17, 2026**
+**Last updated: November 19, 2026**
 
 Binderly is a desktop application for browsing and managing collectible card collections. This
 policy explains what information the app uses, where it goes, and the choices you have.
@@ -26,17 +26,25 @@ application data folder:
 
 - the card catalog downloaded from the data source (card names, sets, rarities, prices and image
   addresses);
-- your collection (which cards you own, with quantity, condition, language and finish);
-- your lists, checklists and wishlists (names, colors, icons and tags you choose);
+- your collection (which cards you own, with quantity, condition, language and finish, and, if you
+  enter them, purchase price and date, location, tags, notes and grading);
+- your lists, checklists and wishlists (names, colors, icons and tags you choose, and the target
+  prices you set);
+- your binders (names, colors, page layout and which card, card back or label sits in each pocket);
+- your saved searches and a daily record of the estimated value of your collection;
 - your preferences (theme, accent color, language, view, filters);
-- cached card images.
+- automatic daily backups of your collection and lists (the last 14 copies), kept in a folder of the
+  application data;
+- cached card images, including the card backs shown in binders.
 
 This data is created by you or downloaded from a public source. **It is not sent to us or to any
 other server.** We cannot see it.
 
 If you use the export or backup features, the app writes a file to the location you choose. If you
 import or restore a file, the app reads only the file you select. These files stay under your
-control; the app never uploads them.
+control; the app never uploads them. If you choose a synced folder (for example one managed by
+OneDrive or Dropbox) for automatic backups, the app only copies the backup file into that folder;
+the upload, if any, is done by that other program under its own terms.
 
 ## Information sent over the internet
 
@@ -58,6 +66,10 @@ To work, the app contacts the following services:
   you open its details (the request contains that card's identifier, and the answer is kept on
   your device for a day), so TCGdex can see which Pokémon cards you look at and when. The same
   happens, for a card that exists only in another language, with its type and text.
+- **Card backs for binders.** The Magic card back is requested from `backs.scryfall.io` and the
+  Yu-Gi-Oh! card back from `images.ygoprodeck.com`, only when you put a card back in a binder
+  (the same rules apply as for the services above). Pokémon and Disney Lorcana backs are drawn by
+  the app and need no download.
 - **LorcanaJSON** (`lorcanajson.org`) and the official Disney Lorcana card images
   (`api.lorcana.ravensburger.com`), only when you download an extra language (French, German or
   Italian) of the Disney Lorcana catalog and when those images are shown. The same rules apply as
