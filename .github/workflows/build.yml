@@ -1,11 +1,16 @@
-# Costruisce gli installatori di Binderly. Questo file è pubblico: qui non c'è nessuna chiave né
-# segreto di scrittura. (Copia versionata in ci/public-build.yml del codice: se lo modifichi,
-# ricopialo qui come .github/workflows/build.yml. Vedi docs/RELEASING.md.)
+# Costruisce gli installatori di Binderly: Windows (+ pacchetto MSIX per il Microsoft Store), Linux,
+# macOS Apple Silicon e macOS Intel. Questo file è pubblico: qui non c'è nessuna chiave né segreto
+# di scrittura. (Copia versionata in ci/public-build.yml del codice: se lo modifichi, allineala con
+# `node scripts/sync-public-build.mjs`; «Rilascio» si rifiuta di partire se le copie differiscono.
+# Vedi docs/RELEASING.md.)
 name: Costruisci
 
-run-name: Costruisci ${{ inputs.tag }} (${{ inputs.nonce }})
+# Il titolo lega l'esecuzione al commit: «Firma e pubblica» la riconosce da qui e controlla che i
+# file attestati vengano proprio da questa esecuzione.
+run-name: Costruisci ${{ inputs.tag }} @ ${{ inputs.sha }} (${{ inputs.nonce }})
 
-# Solo a mano: nessun trigger su pull request, quindi i fork non fanno girare nulla.
+# Solo a mano o dal repository privato: nessun trigger su pull request, quindi i fork non fanno
+# girare nulla.
 on:
   workflow_dispatch:
     inputs:
@@ -13,7 +18,7 @@ on:
         description: Tag di versione (v0.1.7)
         required: true
       sha:
-        description: Commit da costruire
+        description: Commit da costruire (40 caratteri)
         required: true
       nonce:
         description: Identificativo dell'esecuzione
@@ -21,13 +26,19 @@ on:
 
 permissions: {}
 
+concurrency:
+  group: costruisci-${{ inputs.tag }}
+  cancel-in-progress: false
+
 env:
   CODE_REPO: Binderly/binderly
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
-    name: Installatore (${{ matrix.label }})
+    name: Installatori (${{ matrix.label }})
     strategy:
+      # Un sistema che fallisce non ferma gli altri; per rifarne uno solo basta «Re-run failed jobs».
       fail-fast: false
       matrix:
         include:
@@ -48,6 +59,7 @@ jobs:
             args: --target x86_64-apple-darwin
             target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
     # Scrivere sulla bozza del rilascio di questo stesso repository e attestare la provenienza.
     permissions:
       contents: write
@@ -92,9 +104,11 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
+      # I due Mac girano sullo stesso sistema: senza `key` si contenderebbero la stessa cache.
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: code
+          key: ${{ matrix.label }}
 
       - name: Dipendenze di sistema (Linux)
         if: runner.os == 'Linux'
@@ -122,11 +136,30 @@ jobs:
           tar -czf "$dir/Binderly.app.tar.gz" -C "$dir" Binderly.app
           ls -l "$dir"
 
+      # L'MSIX si ricava dallo stesso eseguibile dell'installatore: nessuna seconda compilazione.
+      # Un errore qui non deve far perdere l'installatore di Windows: «Firma e pubblica» pretende
+      # comunque l'MSIX e si ferma, spiegandolo, se manca.
+      - name: Pacchetto MSIX per il Microsoft Store (Windows)
+        id: msix
+        if: runner.os == 'Windows'
+        continue-on-error: true
+        shell: bash
+        working-directory: code
+        run: node scripts/build-msix.mjs --out dist-store
+
+      - name: Avviso se l'MSIX non è stato creato
+        if: runner.os == 'Windows' && steps.msix.outcome == 'failure'
+        shell: bash
+        run: |
+          echo "::warning::Il pacchetto MSIX non è stato creato (vedi il passo precedente): senza, «Firma e pubblica» non pubblica."
+
       - name: Attesta la provenienza (Windows)
         if: runner.os == 'Windows'
         uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2
         with:
-          subject-path: code/target/release/bundle/nsis/*-setup.exe
+          subject-path: |
+            code/target/release/bundle/nsis/*-setup.exe
+            code/dist-store/*.msix
 
       - name: Attesta la provenienza (Linux)
         if: runner.os == 'Linux'
@@ -153,3 +186,26 @@ jobs:
           RELEASES_REPO: ${{ github.repository }}
           TAG: ${{ inputs.tag }}
         run: node scripts/upload-release-assets.mjs "$TAG"
+
+  # Facoltativo. Con il segreto SIGN_DISPATCH_TOKEN (un token fine-grained con il solo permesso
+  # «Actions: Read and write» sul repository del codice: niente accesso ai sorgenti) la firma e la
+  # pubblicazione partono da sole quando tutti e quattro i sistemi sono pronti. Senza il segreto
+  # non succede nulla e si avvia «Firma e pubblica» a mano. Vedi docs/RELEASING.md.
+  notifica:
+    name: Avvia «Firma e pubblica» (se configurato)
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Avvia la firma
+        env:
+          GH_TOKEN: ${{ secrets.SIGN_DISPATCH_TOKEN }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          if [ -z "$GH_TOKEN" ]; then
+            echo "SIGN_DISPATCH_TOKEN non configurato: avvia «Firma e pubblica» a mano per $TAG."
+            exit 0
+          fi
+          gh workflow run firma.yml --repo "$CODE_REPO" -f tag="$TAG"
+          echo "Avviato «Firma e pubblica» per $TAG su $CODE_REPO."
